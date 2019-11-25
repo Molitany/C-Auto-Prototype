@@ -32,6 +32,14 @@ function activate(context) {
 						}
 					}
 				}
+				if (mainStart == undefined){
+					for (let i = 0; i < symbols.length; i++) {
+						if (symbols[i].kind == 11) {
+							mainStart = document.lineAt(symbols[i].location.range.start.line).lineNumber;
+							break;
+						}
+					}
+				}
 
 				let prototypeString = "";
 				let headerFound = false;
@@ -42,24 +50,39 @@ function activate(context) {
 					prototypeString = prototypeString.concat("\n");
 				}
 
-				vscode.workspace.findFiles(headerName).then(function (header) {
+				vscode.workspace.findFiles(headerName.replace("\"", "")).then(function (header) {
 					for (let documentLine = 0; documentLine < document.lineCount; documentLine++) {
-						if (document.lineAt(documentLine).text == "#include <" + headerName + ">") {
+						if (document.lineAt(documentLine).text == "#include \"" + headerName + "\"") {
 							let headerData = "";
 							let modifiedHeaderData = "";
+							let commentCount = 0;
 							headerFound = true;
 							if (documentLine > 0){
-								preHeaderData = document.getText(new vscode.Range(new vscode.Position(0, 0), new vscode.Position(document.lineAt(documentLine).lineNumber, 0))).trim();
-								preHeaderData = preHeaderData.concat("\n");
+								for (let i = 0; i < mainStart; i++) {
+									if (document.lineAt(i).text.includes("/*")){
+										for (let j = i; j < document.lineCount; j++) {
+											if (!document.lineAt(j).text.includes("*/")){
+												commentCount++;
+											}else{
+												break;
+											}
+										}
+										i += commentCount;
+									}else if (document.lineAt(i).text != "#include \"" + headerName + "\""){
+										preHeaderData += document.lineAt(new vscode.Position(document.lineAt(i).lineNumber, 0)).text;
+										preHeaderData = preHeaderData.concat("\n");
+									}
+								}
 							}
-							headerData = preHeaderData + document.getText(new vscode.Range(new vscode.Position(document.lineAt(documentLine).lineNumber + 1, 0), new vscode.Position(mainStart, 0))).trim() + "\n\n" + prototypeString.trim();
+
+							headerData = preHeaderData + "\n" + prototypeString.trim();
 							vscode.workspace.openTextDocument(header[0]).then( headerDocument => {
 								if (headerDocument.uri.fsPath == header[0].fsPath){
 									let currentHeaderData = headerDocument.getText();
 									let headerDataLineText = headerData.split("\n");
 									for (let headerLine = 0; headerLine < headerDocument.lineCount; headerLine++) {
 										headerDataLineText.forEach(str => {
-											if ((headerDocument.lineAt(headerLine).text == str) && headerDocument.lineAt(headerLine).text != "\n"){
+											if ((headerDocument.lineAt(headerLine).text == str) && headerDocument.lineAt(headerLine).text != "\n" && headerDocument.lineAt(headerLine).text != "};"){
 												currentHeaderData = currentHeaderData.replace(headerDocument.lineAt(headerLine).text, "");
 											}
 											
@@ -91,7 +114,7 @@ function activate(context) {
 												if (headerData.split("\n").includes(str)){
 													modifiedHeaderData = modifiedHeaderData + "\n" + str;
 												}
-											}else if (!str.includes("(")){
+											}else if (!str.includes(");")){
 												if (str.includes(";")){
 													modifiedHeaderData = modifiedHeaderData + "\n" + str + "\n";
 												}else{
@@ -103,11 +126,44 @@ function activate(context) {
 									modifiedHeaderData += "\n";
 									
 								}
-	
+								let precommentText = "",
+									postcommentText = "";
+								for (let i = 0; i < mainStart; i++) {
+									if (document.lineAt(i).text.includes("/*")){
+										for (let j = i; j < mainStart; j++) {
+											if (!document.lineAt(j).text.includes("*/")){
+												postcommentText += document.lineAt(new vscode.Position(document.lineAt(j).lineNumber, 0)).text;
+												postcommentText += "\n";
+
+												if (document.lineAt(j+3).text.includes("#")){
+													precommentText = postcommentText;
+													postcommentText = "";
+												}
+											}else{
+												break;
+											}
+										}
+										if ((precommentText != "" || precommentText.includes("*/")) && postcommentText == ""){
+											precommentText += "*/";
+											precommentText += "\n\n";
+										}else{
+											postcommentText += "*/";
+										}
+
+										if (!document.lineAt(i+1).text.includes("/*")){
+											postcommentText += "\n";
+										}
+									}
+								}
+
+/* 								if (precommentText != ""){
+									postcommentText = "\n" + postcommentText;
+								} */
 
 								editor.edit(editBuilder => {
-									editBuilder.replace(new vscode.Range(new vscode.Position(0, 0), new vscode.Position(document.lineAt(documentLine).lineNumber, 0), "\n"));
-									editBuilder.replace(new vscode.Range(new vscode.Position(document.lineAt(documentLine).lineNumber + 1, 0), new vscode.Position(mainStart, 0)), "\n");
+									editBuilder.insert(new vscode.Position(0, 0), precommentText);
+									editBuilder.replace(new vscode.Range(new vscode.Position(0, 0), new vscode.Position(documentLine, 0), "\n"));
+									editBuilder.replace(new vscode.Range(new vscode.Position(documentLine + 1, 0), new vscode.Position(mainStart, 0)), postcommentText);
 								});
 								let wsEdit = new vscode.WorkspaceEdit();
 								wsEdit.replace(header[0], new vscode.Range(new vscode.Position(0, 0), new vscode.Position(document.lineCount, 0)), modifiedHeaderData);

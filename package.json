@@ -1,9 +1,10 @@
 {
 	"name": "c-auto-prototypes",
-	"displayName": "C auto-Prototypes",
+	"icon": "Images/Logo.png",
+	"displayName": "C Auto Prototypes",
 	"description": "Creates a prototype for functions in C automatically.",
 	"publisher": "Molitany",
-	"version": "1.2.0",
+	"version": "1.7.0",
 	"repository": {
 		"type": "github",
 		"url": "https://github.com/Molitany/C-Auto-Prototype.git"
