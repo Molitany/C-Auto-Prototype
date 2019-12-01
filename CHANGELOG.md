@@ -34,8 +34,17 @@ All notable changes to the "C Auto Prototypes" extension will be documented in t
 ### Fixed
 - Minor bug fixes.
 
-## [1.6.0]
+## [1.7.0]
 
 ### Fixed
 - Headers can now also be used without main().
 - Headers now doesn't eat comments.
+
+## [1.8.0]
+
+### Added
+- Now saves after prototypes are made.
+- Headers now gets formatted.
+
+### Fixed
+- Headers should now work again if they are at the start of file.
