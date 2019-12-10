@@ -48,3 +48,12 @@ All notable changes to the "C Auto Prototypes" extension will be documented in t
 
 ### Fixed
 - Headers should now work again if they are at the start of file.
+
+## [1.9.0]
+
+### Added
+- Ability to enable/disable the header functionality in settings.
+- Include guards are now also automated.
+
+### Fixed
+- Prototypes sometimes getting dupelicated.

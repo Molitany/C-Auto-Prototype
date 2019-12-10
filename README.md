@@ -7,6 +7,8 @@ Use the hotkey alt+shift+Q to auto generate functions to the top of the file. Or
 
 If there are already prototypes it will update them accordingly, for example if the parameters for functions were updated.
 
+It is also possible to enable or disable the header functionality if it to the users desire.
+
 ### DEMO
 The result without using a header:
 ![](./Images/No_Header.gif)
