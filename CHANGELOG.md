@@ -57,3 +57,8 @@ All notable changes to the "C Auto Prototypes" extension will be documented in t
 
 ### Fixed
 - Prototypes sometimes getting dupelicated.
+
+## [1.9.1]
+
+### Fixed
+- Prototypes now handle unexpected characters in the function

@@ -22,7 +22,7 @@ function activate(context) {
 						if (symboltext.search("main") == -1) {
 							if (symboltext.search(";") == -1) {
 								if (symboltext.search("{") != -1)
-									symbolsarr.push(symboltext.replace(/{$/, ';'));
+									symbolsarr.push(symboltext.replace(/[^\)]*$/, ';'));
 								else
 									symbolsarr.push(symboltext.concat(";"));
 							} else {
