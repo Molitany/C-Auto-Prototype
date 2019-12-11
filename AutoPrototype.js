@@ -63,6 +63,7 @@ function activate(context) {
 							if (document.lineAt(documentLine).text == "#include \"" + headerName + "\"") {
 								let headerData = "";
 								let modifiedHeaderData = "";
+								let stringsave = [""];
 								let commentCount = 0;
 								headerFound = true;
 								for (let i = 0; i < mainStart; i++) {
@@ -111,7 +112,7 @@ function activate(context) {
 											} else if (str.startsWith("#define")){
 												// if it is a define where there is no include in the header put it first
 												if (str.includes("#define " + headerName.replace(/.h/, "").toUpperCase())){
-													return;
+													stringsave[1] = str;
 												}else if (modifiedHeaderData.search("#include") == -1){
 													modifiedHeaderData = str + "\n" + modifiedHeaderData;
 												// if there is already a define in the header find it and at it to the end of the defines (causes them to flip)
@@ -135,7 +136,11 @@ function activate(context) {
 													}
 												// if it already is in the symbol array and in the prototype list then add it
 												}else if (str.includes("#ifndef") || str.includes("#endif")){
-													return;
+													if (str.includes("#ifndef"))
+														stringsave[0] = str;
+													else
+														stringsave[2] = str;
+														
 												}
 												// else check if there isn't a prototype and append it
 												else if (!str.includes(");")){
@@ -148,15 +153,13 @@ function activate(context) {
 											}
 										});
 									}
-
-									modifiedHeaderData = "#ifndef " + headerName.replace(/.h/, "").toUpperCase() + "\n" + "#define " + headerName.replace(/.h/, "").toUpperCase() + "\n\n" + modifiedHeaderData;
-									modifiedHeaderData += "\n" + "#endif";
-
+									modifiedHeaderData = stringsave[0] + "\n" + stringsave[1] + "\n\n" + modifiedHeaderData;
+									modifiedHeaderData += "\n" + stringsave[2];
 									let precommentText = "",
 										postcommentText = "";
 									// checks for comments before and after includes keep in the file
 									for (let i = 0; i < mainStart; i++) {
-										// TODO: make non ansi comments aswell
+										// TODO: make non ansi comments as well
 
 										// check for a start comment
 										if (document.lineAt(i).text.includes("/*")){
@@ -200,8 +203,6 @@ function activate(context) {
 									wsEdit.replace(headerUri, new vscode.Range(new vscode.Position(0, 0), new vscode.Position(headerDocument.lineCount, 0)), modifiedHeaderData);
 									vscode.workspace.applyEdit(wsEdit);
 
-									vscode.commands.executeCommand("vscode.executeFormatDocumentProvider", headerUri, {}).then(function(){
-									});
 									headerDocument.save();
 								});
 								if (!headerFound){

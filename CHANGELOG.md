@@ -56,9 +56,14 @@ All notable changes to the "C Auto Prototypes" extension will be documented in t
 - Include guards are now also automated.
 
 ### Fixed
-- Prototypes sometimes getting dupelicated.
+- Prototypes sometimes getting duplicated.
 
 ## [1.9.1]
 
 ### Fixed
-- Prototypes now handle unexpected characters in the function
+- Prototypes now handle unexpected characters in the function.
+
+## [1.9.2]
+
+### Fixed
+- Comments on same line as guard is now added as well.
