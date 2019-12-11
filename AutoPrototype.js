@@ -63,7 +63,7 @@ function activate(context) {
 							if (document.lineAt(documentLine).text == "#include \"" + headerName + "\"") {
 								let headerData = "";
 								let modifiedHeaderData = "";
-								let stringsave = [""];
+								let stringsave = ["","",""];
 								let commentCount = 0;
 								headerFound = true;
 								for (let i = 0; i < mainStart; i++) {
@@ -153,8 +153,8 @@ function activate(context) {
 											}
 										});
 									}
-									modifiedHeaderData = stringsave[0] + "\n" + stringsave[1] + "\n\n" + modifiedHeaderData;
-									modifiedHeaderData += "\n" + stringsave[2];
+									modifiedHeaderData = (stringsave[0] == "" ? "" : (stringsave[0] + "\n")) + (stringsave[1] == "" ? "" : (stringsave[1] + "\n\n")) + modifiedHeaderData;
+									modifiedHeaderData += (stringsave[2] == "" ? "" : ("\n" + stringsave[2]));
 									let precommentText = "",
 										postcommentText = "";
 									// checks for comments before and after includes keep in the file

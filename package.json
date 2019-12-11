@@ -4,7 +4,7 @@
 	"displayName": "C Auto Prototypes",
 	"description": "Creates a prototype for functions in C automatically.",
 	"publisher": "Molitany",
-	"version": "1.9.2",
+	"version": "1.9.3",
 	"repository": {
 		"type": "github",
 		"url": "https://github.com/Molitany/C-Auto-Prototype.git"
