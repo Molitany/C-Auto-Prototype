@@ -111,8 +111,10 @@ function activate(context) {
 												modifiedHeaderData = str + "\n" + modifiedHeaderData;
 											} else if (str.startsWith("#define")){
 												// if it is a define where there is no include in the header put it first
-												if (str.includes("#define " + headerName.replace(/.h/, "").toUpperCase())){
+												if (str.includes("#define " + headerName.replace(/\.h/, "").toUpperCase())){
 													stringsave[1] = str;
+												}else if (str.match(/#define .+ .+\r/) == null){
+													return;
 												}else if (modifiedHeaderData.search("#include") == -1){
 													modifiedHeaderData = str + "\n" + modifiedHeaderData;
 												// if there is already a define in the header find it and at it to the end of the defines (causes them to flip)
@@ -153,8 +155,8 @@ function activate(context) {
 											}
 										});
 									}
-									modifiedHeaderData = (stringsave[0] == "" ? "" : (stringsave[0] + "\n")) + (stringsave[1] == "" ? "" : (stringsave[1] + "\n\n")) + modifiedHeaderData;
-									modifiedHeaderData += (stringsave[2] == "" ? "" : ("\n" + stringsave[2]));
+									modifiedHeaderData = (stringsave[0] == "" ? "#ifndef " + headerName.replace(/\.h/, "").toUpperCase() + "\n" : (stringsave[0] + "\n")) + (stringsave[1] == "" ? "#define " + headerName.replace(/\.h/, "").toUpperCase() + "\n": (stringsave[1] + "\n\n")) + modifiedHeaderData;
+									modifiedHeaderData += "\n#endif"
 									let precommentText = "",
 										postcommentText = "";
 									// checks for comments before and after includes keep in the file

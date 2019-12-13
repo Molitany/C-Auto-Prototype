@@ -67,3 +67,16 @@ All notable changes to the "C Auto Prototypes" extension will be documented in t
 
 ### Fixed
 - Comments on same line as guard is now added as well.
+
+## [1.9.3]
+
+### Fixed
+- Header error when making guards with no guards present
+
+## [1.9.4]
+
+### Added
+- Guards are now included totally automatically
+
+### Fixed
+- Guards now handle uncertain names
