@@ -1,11 +1,11 @@
-const vscode = require('vscode');
+import * as vscode from 'vscode';
 
+export function activate(context: vscode.ExtensionContext) {
+	console.log('Congratulations, your extension "c-auto-prototypes" is now active!');
 
-function activate(context) {
-
-	let disposable = vscode.commands.registerCommand('AutoPrototype.prototypeCreate', function () {
+	const createPrototypes = async () => {
+		vscode.window.showInformationMessage('Hello World from C Auto Prototypes!');
 		let editor = vscode.window.activeTextEditor;
-
 
 		if (editor) {
 			let document = editor.document;
@@ -36,7 +36,7 @@ function activate(context) {
 					}
 				}
 				// if there is no main
-				if (mainStart == undefined){
+				if (mainStart == undefined) {
 					for (let i = 0; i < symbols.length; i++) {
 						if (symbols[i].kind == 11) {
 							mainStart = document.lineAt(symbols[i].location.range.start.line).lineNumber;
@@ -54,8 +54,8 @@ function activate(context) {
 					prototypeString += symbolsarr[i];
 					prototypeString += "\n";
 				}
-				if (vscode.workspace.getConfiguration("prototype").get("headerBool") == true){
-				// Look for a header with same name
+				if (vscode.workspace.getConfiguration("prototype").get("headerBool") == true) {
+					// Look for a header with same name
 					vscode.workspace.findFiles(headerName.replace("\"", "")).then(function (header) {
 						headerUri = header[0];
 						for (let documentLine = 0; documentLine < document.lineCount; documentLine++) {
@@ -63,22 +63,22 @@ function activate(context) {
 							if (document.lineAt(documentLine).text == "#include \"" + headerName + "\"") {
 								let headerData = "";
 								let modifiedHeaderData = "";
-								let stringsave = ["","",""];
+								let stringsave = ["", "", ""];
 								let commentCount = 0;
 								headerFound = true;
 								for (let i = 0; i < mainStart; i++) {
 									//look for header comments and set next line after
-									if (document.lineAt(i).text.includes("/*")){
+									if (document.lineAt(i).text.includes("/*")) {
 										for (let j = i; j < document.lineCount; j++) {
-											if (!document.lineAt(j).text.includes("*/")){
+											if (!document.lineAt(j).text.includes("*/")) {
 												commentCount++;
-											}else{
+											} else {
 												break;
 											}
 										}
 										i += commentCount;
-									// get all data to be stored in a string
-									}else if (document.lineAt(i).text != "#include \"" + headerName + "\""){
+										// get all data to be stored in a string
+									} else if (document.lineAt(i).text != "#include \"" + headerName + "\"") {
 										preHeaderData += document.lineAt(new vscode.Position(document.lineAt(i).lineNumber, 0)).text;
 										preHeaderData += "\n";
 									}
@@ -86,16 +86,16 @@ function activate(context) {
 								// Make the input for the header from everything above include and the prototypes
 								headerData = preHeaderData + "\n" + prototypeString.trim();
 								// Get the header document as a TextDocument
-								vscode.workspace.openTextDocument(headerUri).then( headerDocument => {
+								vscode.workspace.openTextDocument(headerUri).then(headerDocument => {
 									// Check if they are the same
-									if (headerDocument.uri.fsPath == headerUri.fsPath){
+									if (headerDocument.uri.fsPath == headerUri.fsPath) {
 										// Get the text inside the header and store it
 										let currentHeaderData = headerDocument.getText();
 										let headerDataLineText = headerData.split("\n");
 										for (let headerLine = 0; headerLine < headerDocument.lineCount; headerLine++) {
 											headerDataLineText.forEach(str => {
 												// if the string already exists in the header and it isn't a newline and not a prototype then remove it
-												if ((headerDocument.lineAt(headerLine).text == str) && headerDocument.lineAt(headerLine).text != "\n" && headerDocument.lineAt(headerLine).text != "};"){
+												if ((headerDocument.lineAt(headerLine).text == str) && headerDocument.lineAt(headerLine).text != "\n" && headerDocument.lineAt(headerLine).text != "};") {
 													currentHeaderData = currentHeaderData.replace(headerDocument.lineAt(headerLine).text, "");
 												}
 											});
@@ -107,55 +107,55 @@ function activate(context) {
 										modifiedHeaderData = "";
 										substrHeaderData.forEach(str => {
 											// if it is an #include put it first
-											if (str.startsWith("#include")){
+											if (str.startsWith("#include")) {
 												modifiedHeaderData = str + "\n" + modifiedHeaderData;
-											} else if (str.startsWith("#define")){
+											} else if (str.startsWith("#define")) {
 												// if it is a define where there is no include in the header put it first
-												if (str.includes("#define " + headerName.replace(/\.h/, "").toUpperCase())){
+												if (str.includes("#define " + headerName.replace(/\.h/, "").toUpperCase())) {
 													stringsave[1] = str;
-												}else if (str.match(/#define .+ .+\r/) == null){
+												} else if (str.match(/#define .+ .+\r/) == null) {
 													return;
-												}else if (modifiedHeaderData.search("#include") == -1){
+												} else if (modifiedHeaderData.search("#include") == -1) {
 													modifiedHeaderData = str + "\n" + modifiedHeaderData;
-												// if there is already a define in the header find it and at it to the end of the defines (causes them to flip)
-												}else{
+													// if there is already a define in the header find it and at it to the end of the defines (causes them to flip)
+												} else {
 													let match = modifiedHeaderData.match(/#define .+?\r\n/g) == null ? [] : modifiedHeaderData.match(/#define .+?\r\n/g);
 													//if there isn't just add them
-													if (match.length == 0){
+													if (match.length == 0) {
 														modifiedHeaderData = modifiedHeaderData + "\n" + str + "\n";
 														return;
 													}
-													let lastIndex = modifiedHeaderData.lastIndexOf(match[match.length-1]);
-													modifiedHeaderData = modifiedHeaderData.slice(0,lastIndex) + str + "\n" + modifiedHeaderData.slice(lastIndex);
+													let lastIndex = modifiedHeaderData.lastIndexOf(match[match.length - 1]);
+													modifiedHeaderData = modifiedHeaderData.slice(0, lastIndex) + str + "\n" + modifiedHeaderData.slice(lastIndex);
 												}
-											// ignore "new lines"
-											}else if (str != "\r"){
-												if (symbolsarr.includes(str.trim())){
-													if (headerData.split("\n").includes(str)){
-														if (!modifiedHeaderData.includes(str)){
+												// ignore "new lines"
+											} else if (str != "\r") {
+												if (symbolsarr.includes(str.trim())) {
+													if (headerData.split("\n").includes(str)) {
+														if (!modifiedHeaderData.includes(str)) {
 															modifiedHeaderData = modifiedHeaderData + "\n" + str;
 														}
 													}
-												// if it already is in the symbol array and in the prototype list then add it
-												}else if (str.includes("#ifndef") || str.includes("#endif")){
+													// if it already is in the symbol array and in the prototype list then add it
+												} else if (str.includes("#ifndef") || str.includes("#endif")) {
 													if (str.includes("#ifndef"))
 														stringsave[0] = str;
 													else
 														stringsave[2] = str;
-														
+
 												}
 												// else check if there isn't a prototype and append it
-												else if (!str.includes(");")){
-													if (str.includes(";")){
+												else if (!str.includes(");")) {
+													if (str.includes(";")) {
 														modifiedHeaderData = modifiedHeaderData + str + "\n";
-													}else{
+													} else {
 														modifiedHeaderData = modifiedHeaderData + "\n" + str;
 													}
 												}
 											}
 										});
 									}
-									modifiedHeaderData = (stringsave[0] == "" ? "#ifndef " + headerName.replace(/\.h/, "").toUpperCase() + "\n" : (stringsave[0] + "\n")) + (stringsave[1] == "" ? "#define " + headerName.replace(/\.h/, "").toUpperCase() + "\n": (stringsave[1] + "\n\n")) + modifiedHeaderData;
+									modifiedHeaderData = (stringsave[0] == "" ? "#ifndef " + headerName.replace(/\.h/, "").toUpperCase() + "\n" : (stringsave[0] + "\n")) + (stringsave[1] == "" ? "#define " + headerName.replace(/\.h/, "").toUpperCase() + "\n" : (stringsave[1] + "\n\n")) + modifiedHeaderData;
 									modifiedHeaderData += "\n#endif"
 									let precommentText = "",
 										postcommentText = "";
@@ -164,31 +164,31 @@ function activate(context) {
 										// TODO: make non ansi comments as well
 
 										// check for a start comment
-										if (document.lineAt(i).text.includes("/*")){
+										if (document.lineAt(i).text.includes("/*")) {
 											for (let j = i; j < mainStart; j++) {
 												// as long as it isn't the end of the comment then add it
-												if (!document.lineAt(j).text.includes("*/")){
+												if (!document.lineAt(j).text.includes("*/")) {
 													postcommentText += document.lineAt(new vscode.Position(document.lineAt(j).lineNumber, 0)).text;
 													postcommentText += "\n";
 													// if there is a # then stop the precomment and start postcomment
-													if (document.lineAt(j+3).text.includes("#")){
+													if (document.lineAt(j + 3).text.includes("#")) {
 														precommentText = postcommentText;
 														postcommentText = "";
 													}
-												}else{
+												} else {
 													break;
 												}
 											}
 											// add an end of the comment for comments
-											if ((precommentText != "" || precommentText.includes("*/")) && postcommentText == ""){
+											if ((precommentText != "" || precommentText.includes("*/")) && postcommentText == "") {
 												precommentText += "*/";
 												precommentText += "\n\n";
-											}else{
+											} else {
 												postcommentText += "*/";
 											}
 
 											// add a new line if this line does not have a start comment
-											if (!document.lineAt(i+1).text.includes("/*")){
+											if (!document.lineAt(i + 1).text.includes("/*")) {
 												postcommentText += "\n";
 											}
 										}
@@ -207,7 +207,7 @@ function activate(context) {
 
 									headerDocument.save();
 								});
-								if (!headerFound){
+								if (!headerFound) {
 									prototypeString = prototypeString.concat("\n");
 
 									editor.edit(editBuilder => {
@@ -219,7 +219,7 @@ function activate(context) {
 					});
 				}
 				// if there is no header just add it to the file
-				if (!(vscode.workspace.getConfiguration("prototype").get("headerBool"))){
+				if (!(vscode.workspace.getConfiguration("prototype").get("headerBool"))) {
 					prototypeString = prototypeString.concat("\n");
 
 					editor.edit(editBuilder => {
@@ -229,16 +229,9 @@ function activate(context) {
 				document.save()
 			});
 		}
-	});
-	context.subscriptions.push(disposable);
+	};
+
+	context.subscriptions.push(vscode.commands.registerCommand('c-auto-prototypes.createPrototypes', createPrototypes));
 }
 
-exports.activate = activate;
-
-// this method is called when your extension is deactivated
-function deactivate() { }
-
-module.exports = {
-	activate,
-	deactivate
-}
+export function deactivate() { }
