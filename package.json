@@ -33,12 +33,12 @@
 		],
 		"configuration": [
 			{
-				"title": "Automate ProtoTypes",
+				"title": "C Auto Prototypes",
 				"properties": {
-					"CAutoPrototypes.AutoCreateHeader": {
+					"c-auto-prototypes.UseHeader": {
 						"type": "boolean",
 						"default": true,
-						"description": "Automate creating header file for document"
+						"description": "Use a header file for prototypes instead of source file"
 					}
 				}
 			}
