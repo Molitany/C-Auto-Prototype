@@ -2,13 +2,13 @@
   "name": "c-auto-prototypes",
   "icon": "Images/Logo.png",
   "displayName": "C Auto Prototypes",
-	"description": "Creates a prototype for functions in C automatically.",
+  "description": "Creates a prototype for functions in C automatically.",
   "publisher": "Molitany",
-	"version": "1.9.5",
+  "version": "1.9.5",
   "repository": {
-		"type": "github",
-		"url": "https://github.com/Molitany/C-Auto-Prototype.git"
-	},
+    "type": "github",
+    "url": "https://github.com/Molitany/C-Auto-Prototype.git"
+  },
   "engines": {
     "vscode": "^1.76.0"
   },
@@ -18,32 +18,32 @@
   "activationEvents": [],
   "main": "./out/extension.js",
   "contributes": {
-		"commands": [
-			{
-				"command": "c-auto-prototypes.createPrototypes",
-				"title": "Create Prototype"
-			}
-		],
-		"keybindings": [
-			{
-				"command": "c-auto-prototypes.createPrototypes",
-				"key": "alt+shift+q",
-				"when": "editorTextFocus"
-			}
-		],
-		"configuration": [
-			{
-				"title": "C Auto Prototypes",
-				"properties": {
-					"c-auto-prototypes.UseHeader": {
-						"type": "boolean",
-						"default": true,
-						"description": "Use a header file for prototypes instead of source file"
-					}
-				}
-			}
-		]
-	},
+    "commands": [
+      {
+        "command": "c-auto-prototypes.createPrototypes",
+        "title": "Create Prototype"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "c-auto-prototypes.createPrototypes",
+        "key": "alt+shift+q",
+        "when": "editorTextFocus"
+      }
+    ],
+    "configuration": [
+      {
+        "title": "C Auto Prototypes",
+        "properties": {
+          "c-auto-prototypes.UseHeader": {
+            "type": "boolean",
+            "default": true,
+            "description": "Use a header file for prototypes instead of source file"
+          }
+        }
+      }
+    ]
+  },
   "scripts": {
     "vscode:prepublish": "npm run compile",
     "compile": "tsc -p ./",
@@ -53,16 +53,19 @@
     "test": "node ./out/test/runTest.js"
   },
   "devDependencies": {
-    "@types/vscode": "^1.76.0",
     "@types/glob": "^8.1.0",
     "@types/mocha": "^10.0.1",
     "@types/node": "16.x",
+    "@types/vscode": "^1.76.0",
     "@typescript-eslint/eslint-plugin": "^5.56.0",
     "@typescript-eslint/parser": "^5.56.0",
+    "@vscode/test-electron": "^2.3.0",
     "eslint": "^8.36.0",
     "glob": "^8.1.0",
     "mocha": "^10.2.0",
-    "typescript": "^4.9.5",
-    "@vscode/test-electron": "^2.3.0"
+    "typescript": "^4.9.5"
+  },
+  "dependencies": {
+    "fast-diff": "^1.2.0"
   }
 }
