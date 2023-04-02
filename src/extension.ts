@@ -1,29 +1,36 @@
 import * as vscode from 'vscode';
 
+type VSCodeSymbol = (vscode.SymbolInformation & vscode.DocumentSymbol);
+
 interface Symbol {
-	returnType: string;
-	symbol: vscode.DocumentSymbol;
+	prefix: string;
+	codeSymbol: VSCodeSymbol;
 }
+const FUNCTION = 11;
 
 export function activate(context: vscode.ExtensionContext) {
 	const createPrototypes = async () => {
 		let editor = vscode.window.activeTextEditor;
 		if (editor && isCLanguageFile(editor.document)) {
 			const currentDocument = editor.document;
-			let prototypes: Symbol[];
+			let symbols: Symbol[];
 			if (vscode.workspace.getConfiguration("c-auto-prototypes").get("UseHeader")) {
 				const oppositeDocument = await getOppositeFile(currentDocument);
 				const { sourceDocument, headerDocument } = determineDocument(currentDocument, oppositeDocument);
 				if (headerDocument) {
-					prototypes = await getPrototypes(sourceDocument, headerDocument);
-					const headerText = createHeaderText(prototypes, headerDocument);
-					editDocument(headerText, headerDocument);
-					includeHeader(sourceDocument, headerDocument);
+					symbols = await getPrototypes(sourceDocument, headerDocument);
+					const headerText = createHeaderText(symbols, headerDocument);
+					const workEdits = new vscode.WorkspaceEdit();
+					await cleanSource(sourceDocument, symbols, workEdits);
+					await editDocument(headerText, headerDocument, workEdits);
+					await includeHeader(sourceDocument, headerDocument, workEdits);
+					await vscode.workspace.applyEdit(workEdits);
 				} else {
 					throw new Error(`Header document for ${currentDocument.fileName} could not be accessed`);
 				}
 			} else {
-				prototypes = await getPrototypes(currentDocument);
+				const { sourceDocument } = determineDocument(currentDocument);
+				symbols = await getPrototypes(sourceDocument);
 			}
 		}
 	};
@@ -70,35 +77,37 @@ function getDocumentNamePathExtension(document: vscode.TextDocument): { fileName
 	return { fileName, path, extension };
 }
 
-function editDocument(text: string, document: vscode.TextDocument) {
-	const workEdits = new vscode.WorkspaceEdit();
+async function editDocument(text: string, document: vscode.TextDocument, workEdits: vscode.WorkspaceEdit) {
 	const endOfFile = new vscode.Position(document.lineCount, document.lineAt(document.lineCount - 1).text.length);
 	const startOfFile = new vscode.Position(0, 0);
 	workEdits.replace(document.uri, new vscode.Range(startOfFile, endOfFile), text);
-	vscode.workspace.applyEdit(workEdits);
 }
 
 async function getPrototypes(sourceDocument: vscode.TextDocument, headerDocument: vscode.TextDocument | null = null): Promise<Symbol[]> {
-	const sourceSymbols = await vscode.commands.executeCommand("vscode.executeDocumentSymbolProvider", sourceDocument.uri) as vscode.DocumentSymbol[];
+	const sourceSymbols = await vscode.commands.executeCommand("vscode.executeDocumentSymbolProvider", sourceDocument.uri) as VSCodeSymbol[];
 	if (!sourceSymbols) {
 		throw new Error("No symbols found");
 	}
 	const sourceFunctions: Symbol[] = sourceSymbols.filter(symbol => {
 		const main = symbol.name.slice(0, symbol.name.indexOf("("));
-		return symbol.kind === 11 && main !== "main";
+		return symbol.kind === FUNCTION && main !== "main";
 	}).map(symbol => {
-		const returnType = sourceDocument.lineAt(symbol.range.start).text.trim().replace(/ .*/, "");
-		return { returnType: returnType, symbol: symbol };
+		const functionName = symbol.name.slice(0, symbol.name.indexOf('('));
+		const line = sourceDocument.lineAt(symbol.range.start).text.trim();
+		const prefix = line.slice(0, line.indexOf(functionName));
+		return { prefix: prefix, codeSymbol: symbol };
 	});
 	let headerPrototypes: Symbol[];
 
 	if (headerDocument) {
-		const documentSymbols = await vscode.commands.executeCommand("vscode.executeDocumentSymbolProvider", headerDocument.uri) as vscode.DocumentSymbol[];
+		const documentSymbols = await vscode.commands.executeCommand("vscode.executeDocumentSymbolProvider", headerDocument.uri) as VSCodeSymbol[];
 		if (documentSymbols) {
-			headerPrototypes = documentSymbols.filter(symbol => symbol.kind === 11 && symbol.detail === "declaration")
+			headerPrototypes = documentSymbols.filter(symbol => symbol.kind === FUNCTION)
 				.map(symbol => {
-					const returnType = headerDocument.lineAt(symbol.range.start).text.trim().replace(/ .*/, "");
-					return { returnType: returnType, symbol: symbol };
+					const functionName = symbol.name.slice(0, symbol.name.indexOf('('));
+					const line = headerDocument.lineAt(symbol.range.start).text.trim();
+					const prefix = line.slice(0, line.indexOf(functionName));
+					return { prefix: prefix, codeSymbol: symbol };
 				});
 		} else {
 			headerPrototypes = [];
@@ -107,13 +116,13 @@ async function getPrototypes(sourceDocument: vscode.TextDocument, headerDocument
 		headerPrototypes = [];
 	}
 
-	return sourceFunctions.concat(headerPrototypes)
-		.filter((value, index, array) => {
-			return array.map(mapSymbol => mapSymbol.symbol.name).indexOf(value.symbol.name) === index;
-		});
+	return sourceFunctions.concat(headerPrototypes);
+	// .filter((value, index, array) => {
+	// 	return array.map(mapSymbol => mapSymbol.symbol.name).indexOf(value.symbol.name) === index;
+	// });
 }
 
-function determineDocument(currentDocument: vscode.TextDocument, oppositeDocument: vscode.TextDocument | null): { sourceDocument: vscode.TextDocument; headerDocument: vscode.TextDocument | null; }  {
+function determineDocument(currentDocument: vscode.TextDocument, oppositeDocument: vscode.TextDocument | null = null): { sourceDocument: vscode.TextDocument; headerDocument: vscode.TextDocument | null; } {
 	const { extension } = getDocumentNamePathExtension(currentDocument);
 	let sourceDocument: vscode.TextDocument;
 	let headerDocument: vscode.TextDocument | null;
@@ -132,7 +141,7 @@ function determineDocument(currentDocument: vscode.TextDocument, oppositeDocumen
 	return { sourceDocument, headerDocument };
 }
 
-function createHeaderText(prototypes: Symbol[], document: vscode.TextDocument): string {
+function createHeaderText(symbols: Symbol[], document: vscode.TextDocument): string {
 	const { fileName } = getDocumentNamePathExtension(document);
 	const headerGuard = `${fileName.toUpperCase()}_H`;
 	const headerGuardEnd = `\n\n#endif //${headerGuard}`;
@@ -142,14 +151,18 @@ function createHeaderText(prototypes: Symbol[], document: vscode.TextDocument): 
 	let textToWrite = `#ifndef ${headerGuard}\n` +
 		`#define ${headerGuard}\n\n`;
 
-	prototypes.forEach(symbol => {
-		prototypeText += `${symbol.returnType} ${symbol.symbol.name};\n`;
+	symbols.forEach(symbol => {
+		if (symbol.codeSymbol.detail !== "declaration") {
+			prototypeText += `${symbol.prefix}${symbol.codeSymbol.name};\n`;
+		}
 	});
+
+	const prevPrototypeText = symbols.map(symbol => `${symbol.prefix}${symbol.codeSymbol.name};\n`).join("");
 
 	const checkText = textToWrite + prototypeText + headerGuardEnd;
 	for (let i = 0; i < document.lineCount; ++i) {
 		const lineText = document.lineAt(i).text;
-		if (!checkText.includes(lineText)) {
+		if (!checkText.includes(lineText) && !prevPrototypeText.includes(lineText)) {
 			if (lineText.startsWith('#')) {
 				preText += `${lineText}\n`;
 			} else {
@@ -164,12 +177,20 @@ function createHeaderText(prototypes: Symbol[], document: vscode.TextDocument): 
 	return textToWrite;
 }
 
-function includeHeader(document: vscode.TextDocument, headerDocument: vscode.TextDocument) {
+async function includeHeader(document: vscode.TextDocument, headerDocument: vscode.TextDocument, workEdits: vscode.WorkspaceEdit) {
 	const { fileName } = getDocumentNamePathExtension(headerDocument);
 	if (!document.getText().includes(`#include "${fileName}.h"`)) {
-		const workEdits = new vscode.WorkspaceEdit();
 		const position = new vscode.Position(0, 0);
 		workEdits.insert(document.uri, position, `#include "${fileName}.h"\n`);
-		vscode.workspace.applyEdit(workEdits);
 	}
+}
+
+async function cleanSource(sourceDocument: vscode.TextDocument, symbols: Symbol[], workEdits: vscode.WorkspaceEdit) {
+	symbols.filter(symbol => symbol.codeSymbol.detail === "declaration" &&
+		symbol.codeSymbol.kind === FUNCTION &&
+		symbol.codeSymbol.location.uri === sourceDocument.uri)
+		.forEach(symbol => {
+			const rangeIncludingLineBreak = new vscode.Range(symbol.codeSymbol.range.start, new vscode.Position(symbol.codeSymbol.range.end.line + 1, 0));
+			workEdits.delete(symbol.codeSymbol.location.uri, rangeIncludingLineBreak);
+		});
 }
