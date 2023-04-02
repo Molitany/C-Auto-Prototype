@@ -18,7 +18,7 @@ export function activate(context: vscode.ExtensionContext) {
 				const oppositeDocument = await getOppositeFile(currentDocument);
 				const { sourceDocument, headerDocument } = determineDocument(currentDocument, oppositeDocument);
 				if (headerDocument) {
-					symbols = await getPrototypes(sourceDocument, headerDocument);
+					symbols = await getSymbols(sourceDocument, headerDocument);
 					const headerText = createHeaderText(symbols, headerDocument);
 					const workEdits = new vscode.WorkspaceEdit();
 					await cleanSource(sourceDocument, symbols, workEdits);
@@ -30,7 +30,11 @@ export function activate(context: vscode.ExtensionContext) {
 				}
 			} else {
 				const { sourceDocument } = determineDocument(currentDocument);
-				symbols = await getPrototypes(sourceDocument);
+				symbols = await getSymbols(sourceDocument);
+				const sourceText = createSourceText(symbols, sourceDocument);
+				const workEdits = new vscode.WorkspaceEdit();
+				await editDocument(sourceText, sourceDocument, workEdits);
+				await vscode.workspace.applyEdit(workEdits);
 			}
 		}
 	};
@@ -83,7 +87,7 @@ async function editDocument(text: string, document: vscode.TextDocument, workEdi
 	workEdits.replace(document.uri, new vscode.Range(startOfFile, endOfFile), text);
 }
 
-async function getPrototypes(sourceDocument: vscode.TextDocument, headerDocument: vscode.TextDocument | null = null): Promise<Symbol[]> {
+async function getSymbols(sourceDocument: vscode.TextDocument, headerDocument: vscode.TextDocument | null = null): Promise<Symbol[]> {
 	const sourceSymbols = await vscode.commands.executeCommand("vscode.executeDocumentSymbolProvider", sourceDocument.uri) as VSCodeSymbol[];
 	if (!sourceSymbols) {
 		throw new Error("No symbols found");
@@ -141,8 +145,8 @@ function determineDocument(currentDocument: vscode.TextDocument, oppositeDocumen
 	return { sourceDocument, headerDocument };
 }
 
-function createHeaderText(symbols: Symbol[], document: vscode.TextDocument): string {
-	const { fileName } = getDocumentNamePathExtension(document);
+function createHeaderText(symbols: Symbol[], headerDocument: vscode.TextDocument): string {
+	const { fileName } = getDocumentNamePathExtension(headerDocument);
 	const headerGuard = `${fileName.toUpperCase()}_H`;
 	const headerGuardEnd = `\n\n#endif //${headerGuard}`;
 	let preText: string = "";
@@ -158,21 +162,20 @@ function createHeaderText(symbols: Symbol[], document: vscode.TextDocument): str
 	});
 
 	const prevPrototypeText = symbols.map(symbol => `${symbol.prefix}${symbol.codeSymbol.name};\n`).join("");
-
-	const checkText = textToWrite + prototypeText + headerGuardEnd;
-	for (let i = 0; i < document.lineCount; ++i) {
-		const lineText = document.lineAt(i).text;
-		if (!checkText.includes(lineText) && !prevPrototypeText.includes(lineText)) {
+	const checkText = textToWrite + prototypeText + prevPrototypeText + headerGuardEnd;
+	for (let i = 0; i < headerDocument.lineCount; ++i) {
+		const lineRange = headerDocument.lineAt(i).rangeIncludingLineBreak;
+		const lineText = headerDocument.getText(lineRange);
+		if (!checkText.includes(lineText.trim())) {
 			if (lineText.startsWith('#')) {
-				preText += `${lineText}\n`;
+				preText += `${lineText}`;
 			} else {
-				postText += `${lineText}\n`;
+				postText += `${lineText}`;
 			}
 		}
 	}
 
-	textToWrite += `${preText}\n${prototypeText}\n${postText}`;
-	textToWrite = textToWrite.trim();
+	textToWrite += `${preText}\n${prototypeText}\n${postText}`.trim();
 	textToWrite += headerGuardEnd;
 	return textToWrite;
 }
@@ -194,3 +197,31 @@ async function cleanSource(sourceDocument: vscode.TextDocument, symbols: Symbol[
 			workEdits.delete(symbol.codeSymbol.location.uri, rangeIncludingLineBreak);
 		});
 }
+function createSourceText(symbols: Symbol[], sourceDocument: vscode.TextDocument) {
+	let preText: string = "";
+	let prototypeText: string = "";
+	let postText: string = "";
+
+	symbols.forEach(symbol => {
+		if (symbol.codeSymbol.detail !== "declaration") {
+			prototypeText += `${symbol.prefix}${symbol.codeSymbol.name};\n`;
+		}
+	});
+	const prevPrototypeText = symbols.map(symbol => `${symbol.prefix}${symbol.codeSymbol.name};\n`).join("");
+	const checkText = prototypeText + prevPrototypeText;
+	for (let i = 0; i < sourceDocument.lineCount; ++i) {
+		const lineRange = sourceDocument.lineAt(i).rangeIncludingLineBreak;
+		const lineText = sourceDocument.getText(lineRange);
+		if (!checkText.includes(lineText.trim())) {
+			if (lineText.startsWith('#')) {
+				preText += `${lineText}`;
+			} else {
+				postText += `${lineText}`;
+			}
+		}
+	}
+
+	return `${preText}\n${prototypeText}${postText}`.trim();
+	
+}
+
