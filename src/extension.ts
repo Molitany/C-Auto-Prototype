@@ -1,36 +1,73 @@
 import * as vscode from 'vscode';
-import * as diff from "fast-diff";
 
 interface Symbol {
 	returnType: string;
 	symbol: vscode.DocumentSymbol;
 }
 
-function isSourceFile(document: vscode.TextDocument): boolean {
-	return document.fileName.endsWith(".c");
+export function activate(context: vscode.ExtensionContext) {
+	const createPrototypes = async () => {
+		let editor = vscode.window.activeTextEditor;
+		if (editor && isCLanguageFile(editor.document)) {
+			const currentDocument = editor.document;
+			let prototypes: Symbol[];
+			if (vscode.workspace.getConfiguration("c-auto-prototypes").get("UseHeader")) {
+				const oppositeDocument = await getOppositeFile(currentDocument);
+				const { sourceDocument, headerDocument } = determineDocument(currentDocument, oppositeDocument);
+				if (headerDocument) {
+					prototypes = await getPrototypes(sourceDocument, headerDocument);
+					const headerText = createHeaderText(prototypes, headerDocument);
+					editDocument(headerText, headerDocument);
+					includeHeader(sourceDocument, headerDocument);
+				} else {
+					throw new Error(`Header document for ${currentDocument.fileName} could not be accessed`);
+				}
+			} else {
+				prototypes = await getPrototypes(currentDocument);
+			}
+		}
+	};
+
+	context.subscriptions.push(vscode.commands.registerCommand('c-auto-prototypes.createPrototypes', createPrototypes));
 }
 
-async function getHeaderFile(document: vscode.TextDocument): Promise<vscode.TextDocument | null> {
-	const { fileName, path } = getDocumentNameAndPath(document);
+export function deactivate() { }
+
+
+function isCLanguageFile(document: vscode.TextDocument): boolean {
+	return document.fileName.endsWith(".c") || document.fileName.endsWith(".h");
+}
+
+async function getOppositeFile(document: vscode.TextDocument): Promise<vscode.TextDocument | null> {
+	const { fileName, path, extension } = getDocumentNamePathExtension(document);
 	const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
 	if (workspaceFolder) {
-		if ((await vscode.workspace.findFiles(`*/${fileName}.h`)).length < 1) {
-			const workEdits = new vscode.WorkspaceEdit();
-			workEdits.createFile(vscode.Uri.file(`${path}${fileName}.h`));
-			await vscode.workspace.applyEdit(workEdits);
-
+		if (extension === ".c") {
+			await createFileIfNotExist(".h");
+			return await vscode.workspace.openTextDocument(`${path}${fileName}.h`);
+		} else {
+			await createFileIfNotExist(".c");
+			return await vscode.workspace.openTextDocument(`${path}${fileName}.c`);
 		}
-		return await vscode.workspace.openTextDocument(`${path}${fileName}.h`);
 	}
 	return null;
+
+	async function createFileIfNotExist(extension: string) {
+		if ((await vscode.workspace.findFiles(`*/${fileName}${extension}`)).length < 1) {
+			const workEdits = new vscode.WorkspaceEdit();
+			workEdits.createFile(vscode.Uri.file(`${path}${fileName}${extension}`));
+			await vscode.workspace.applyEdit(workEdits);
+		}
+	}
 };
 
-function getDocumentNameAndPath(document: vscode.TextDocument): { fileName: string, path: string } {
+function getDocumentNamePathExtension(document: vscode.TextDocument): { fileName: string, path: string, extension: string } {
 	const lastSlashIndex = document.fileName.lastIndexOf('\\');
 	const extensionIndex = document.fileName.lastIndexOf(".");
-	const fileName = document.fileName.slice(lastSlashIndex + 1, extensionIndex);
 	const path = document.fileName.slice(0, lastSlashIndex + 1);
-	return { fileName, path };
+	const fileName = document.fileName.slice(lastSlashIndex + 1, extensionIndex);
+	const extension = document.fileName.slice(extensionIndex, document.fileName.length + 1);
+	return { fileName, path, extension };
 }
 
 function editDocument(text: string, document: vscode.TextDocument) {
@@ -41,7 +78,7 @@ function editDocument(text: string, document: vscode.TextDocument) {
 	vscode.workspace.applyEdit(workEdits);
 }
 
-async function getPrototypes(sourceDocument: vscode.TextDocument, document: vscode.TextDocument | null = null): Promise<Symbol[]> {
+async function getPrototypes(sourceDocument: vscode.TextDocument, headerDocument: vscode.TextDocument | null = null): Promise<Symbol[]> {
 	const sourceSymbols = await vscode.commands.executeCommand("vscode.executeDocumentSymbolProvider", sourceDocument.uri) as vscode.DocumentSymbol[];
 	if (!sourceSymbols) {
 		throw new Error("No symbols found");
@@ -55,12 +92,12 @@ async function getPrototypes(sourceDocument: vscode.TextDocument, document: vsco
 	});
 	let headerPrototypes: Symbol[];
 
-	if (document) {
-		const documentSymbols = await vscode.commands.executeCommand("vscode.executeDocumentSymbolProvider", document.uri) as vscode.DocumentSymbol[];
+	if (headerDocument) {
+		const documentSymbols = await vscode.commands.executeCommand("vscode.executeDocumentSymbolProvider", headerDocument.uri) as vscode.DocumentSymbol[];
 		if (documentSymbols) {
 			headerPrototypes = documentSymbols.filter(symbol => symbol.kind === 11 && symbol.detail === "declaration")
 				.map(symbol => {
-					const returnType = document.lineAt(symbol.range.start).text.trim().replace(/ .*/, "");
+					const returnType = headerDocument.lineAt(symbol.range.start).text.trim().replace(/ .*/, "");
 					return { returnType: returnType, symbol: symbol };
 				});
 		} else {
@@ -76,29 +113,59 @@ async function getPrototypes(sourceDocument: vscode.TextDocument, document: vsco
 		});
 }
 
+function determineDocument(currentDocument: vscode.TextDocument, oppositeDocument: vscode.TextDocument | null): { sourceDocument: vscode.TextDocument; headerDocument: vscode.TextDocument | null; }  {
+	const { extension } = getDocumentNamePathExtension(currentDocument);
+	let sourceDocument: vscode.TextDocument;
+	let headerDocument: vscode.TextDocument | null;
+	if (oppositeDocument) {
+		if (extension === ".c") {
+			sourceDocument = currentDocument;
+			headerDocument = oppositeDocument;
+		} else {
+			sourceDocument = oppositeDocument;
+			headerDocument = currentDocument;
+		}
+	} else {
+		sourceDocument = currentDocument;
+		headerDocument = null;
+	}
+	return { sourceDocument, headerDocument };
+}
+
 function createHeaderText(prototypes: Symbol[], document: vscode.TextDocument): string {
-	const { fileName } = getDocumentNameAndPath(document);
+	const { fileName } = getDocumentNamePathExtension(document);
 	const headerGuard = `${fileName.toUpperCase()}_H`;
 	const headerGuardEnd = `\n\n#endif //${headerGuard}`;
+	let preText: string = "";
+	let prototypeText: string = "";
+	let postText: string = "";
 	let textToWrite = `#ifndef ${headerGuard}\n` +
 		`#define ${headerGuard}\n\n`;
+
 	prototypes.forEach(symbol => {
-		textToWrite += `${symbol.returnType} ${symbol.symbol.name};\n`;
+		prototypeText += `${symbol.returnType} ${symbol.symbol.name};\n`;
 	});
-	textToWrite += '\n';
-	const additionalHeaderText = diff((textToWrite + headerGuardEnd), document.getText().replace(/\r/gm, ""));
-	additionalHeaderText.forEach(difference => {
-		if (difference[0] === 1) {
-			textToWrite += difference[1];
+
+	const checkText = textToWrite + prototypeText + headerGuardEnd;
+	for (let i = 0; i < document.lineCount; ++i) {
+		const lineText = document.lineAt(i).text;
+		if (!checkText.includes(lineText)) {
+			if (lineText.startsWith('#')) {
+				preText += `${lineText}\n`;
+			} else {
+				postText += `${lineText}\n`;
+			}
 		}
-	});
+	}
+
+	textToWrite += `${preText}\n${prototypeText}\n${postText}`;
 	textToWrite = textToWrite.trim();
 	textToWrite += headerGuardEnd;
 	return textToWrite;
 }
 
 function includeHeader(document: vscode.TextDocument, headerDocument: vscode.TextDocument) {
-	const { fileName } = getDocumentNameAndPath(headerDocument);
+	const { fileName } = getDocumentNamePathExtension(headerDocument);
 	if (!document.getText().includes(`#include "${fileName}.h"`)) {
 		const workEdits = new vscode.WorkspaceEdit();
 		const position = new vscode.Position(0, 0);
@@ -106,31 +173,3 @@ function includeHeader(document: vscode.TextDocument, headerDocument: vscode.Tex
 		vscode.workspace.applyEdit(workEdits);
 	}
 }
-
-export function activate(context: vscode.ExtensionContext) {
-	const createPrototypes = async () => {
-		let editor = vscode.window.activeTextEditor;
-		if (editor && isSourceFile(editor.document)) {
-			const sourceDocument = editor.document;
-			let prototypes: Symbol[];
-			if (vscode.workspace.getConfiguration("c-auto-prototypes").get("UseHeader")) {
-				const headerDocument = await getHeaderFile(sourceDocument);
-				if (headerDocument) {
-					prototypes = await getPrototypes(sourceDocument, headerDocument);
-					const headerText = createHeaderText(prototypes, headerDocument);
-					editDocument(headerText, headerDocument);
-					includeHeader(sourceDocument, headerDocument);
-				} else {
-					throw new Error(`Header document for ${sourceDocument.fileName} could not be accessed`);
-				}
-			} else {
-				prototypes = await getPrototypes(sourceDocument);
-			}
-		}
-	};
-
-	context.subscriptions.push(vscode.commands.registerCommand('c-auto-prototypes.createPrototypes', createPrototypes));
-}
-
-export function deactivate() { }
-
