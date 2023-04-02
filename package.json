@@ -1,63 +1,68 @@
 {
-	"name": "c-auto-prototypes",
-	"icon": "Images/Logo.png",
-	"displayName": "C Auto Prototypes",
-	"description": "Creates a prototype for functions in C automatically.",
-	"publisher": "Molitany",
-	"version": "1.9.5",
-	"repository": {
-		"type": "github",
-		"url": "https://github.com/Molitany/C-Auto-Prototype.git"
-	},
-	"engines": {
-		"vscode": "^1.40.0"
-	},
-	"categories": [
-		"Other"
-	],
-	"activationEvents": [
-		"onCommand:AutoPrototype.prototypeCreate"
-	],
-	"main": "./AutoPrototype.js",
-	"contributes": {
-		"commands": [
-			{
-				"command": "AutoPrototype.prototypeCreate",
-				"title": "Create Prototype"
-			}
-		],
-		"keybindings": [
-			{
-				"command": "AutoPrototype.prototypeCreate",
-				"key": "alt+shift+q",
-				"when": "editorTextFocus"
-			}
-		],
-		"configuration": [
-			{
-				"title": "ProtoType",
-				"properties": {
-					"prototype.headerBool": {
-						"type": "boolean",
-						"default": true,
-						"description": "Automate headers"
-					}
-				}
-			}
-		]
-	},
-	"scripts": {
-		"test": "node ./test/runTest.js"
-	},
-	"devDependencies": {
-		"@types/glob": "^7.1.1",
-		"@types/mocha": "^5.2.7",
-		"@types/node": "^12.11.7",
-		"@types/vscode": "^1.40.0",
-		"eslint": "^6.6.0",
-		"glob": "^7.1.5",
-		"mocha": "^6.2.2",
-		"typescript": "^3.6.4",
-		"vscode-test": "^1.2.2"
-	}
+  "name": "c-auto-prototypes",
+  "icon": "Images/Logo.png",
+  "displayName": "C Auto Prototypes",
+  "description": "Creates a prototype for functions in C automatically.",
+  "publisher": "Molitany",
+  "version": "1.9.5",
+  "repository": {
+    "type": "github",
+    "url": "https://github.com/Molitany/C-Auto-Prototype.git"
+  },
+  "engines": {
+    "vscode": "^1.76.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "c-auto-prototypes.createPrototypes",
+        "title": "Create Prototype"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "c-auto-prototypes.createPrototypes",
+        "key": "alt+shift+q",
+        "when": "editorTextFocus"
+      }
+    ],
+    "configuration": [
+      {
+        "title": "C Auto Prototypes",
+        "properties": {
+          "c-auto-prototypes.UseHeader": {
+            "type": "boolean",
+            "default": true,
+            "description": "Use a header file for prototypes instead of source file"
+          }
+        }
+      }
+    ]
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "pretest": "npm run compile && npm run lint",
+    "lint": "eslint src --ext ts",
+    "test": "node ./out/test/runTest.js"
+  },
+  "devDependencies": {
+    "@types/glob": "^8.1.0",
+    "@types/mocha": "^10.0.1",
+    "@types/node": "16.x",
+    "@types/vscode": "^1.76.0",
+    "@typescript-eslint/eslint-plugin": "^5.56.0",
+    "@typescript-eslint/parser": "^5.56.0",
+    "@vscode/test-electron": "^2.3.0",
+    "eslint": "^8.36.0",
+    "glob": "^8.1.0",
+    "mocha": "^10.2.0",
+    "typescript": "^4.9.5"
+  }
 }
